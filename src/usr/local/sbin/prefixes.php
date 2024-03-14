@@ -50,6 +50,7 @@ while (( $line = fgets($fd, 4096)) !== false) {
 	if (preg_match("/^(ia-[np][ad])[ ]+\"(.*)\"/i", $line, $duidmatch)) {
 		$type = $duidmatch[1];
 		$duid = extract_duid($duidmatch[2]);
+		$iaid = extract_iaid($duidmatch[2]);
 		continue;
 	}
 
@@ -77,7 +78,7 @@ while (( $line = fgets($fd, 4096)) !== false) {
 					$duid_arr[$duid][$type] = $ia_na;
 					break;
 				case "ia-pd":
-					$duid_arr[$duid][$type] = $ia_pd;
+					$duid_arr[$duid][$type][$iaid] = $ia_pd;
 					break;
 				default:
 					break;
@@ -85,6 +86,7 @@ while (( $line = fgets($fd, 4096)) !== false) {
 		}
 		unset($type);
 		unset($duid);
+		unset($iaid);
 		unset($active);
 		unset($ia_na);
 		unset($ia_pd);
@@ -96,14 +98,16 @@ fclose($fd);
 $routes = array();
 foreach ($duid_arr as $entry) {
 	if (!empty($entry['ia-pd'])) {
-		$routes[$entry['ia-na']] = $entry['ia-pd'];
+		$routes[$entry['ia-na']] = array_values($entry['ia-pd']);
 	}
 }
 
 // echo "add routes\n";
 if (count($routes) > 0) {
-	foreach ($routes as $address => $prefix) {
-		route_add_or_change($prefix, $address);
+	foreach ($routes as $address => $prefixes) {
+		foreach($prefixes as $v => $prefix) {
+			route_add_or_change($prefix, $address);
+		}
 	}
 }
 
@@ -159,6 +163,22 @@ function extract_duid($ia_string) {
 	if ($iaid_counter === 4) {
 		/* substr returns false when $len == $i */
 		return substr($ia_string, $i);
+	}
+
+	return false;
+}
+
+function extract_iaid($ia_string) {
+	for ($i = 0, $iaid_counter = 0, $len = strlen($ia_string); $i < $len && $iaid_counter < 4; $i++, $iaid_counter++) {
+			if ($ia_string[$i] === '\\') {
+					$i += 3;
+					continue;
+			}
+	}
+
+	/* Return the first 4 octets */
+	if ($iaid_counter === 4) {
+			return substr($ia_string, 0, $i);
 	}
 
 	return false;
